@@ -28,6 +28,8 @@ static unsigned int chart_count = 0;
 static chartlib_style_t style;
 static chartlib_event_callback_t event_cb = NULL;
 static void *event_cb_userdata = NULL;
+static int value_range_min = 0;
+static int value_range_max = 100;
 
 static unsigned long color_pixel(chartlib_color_t c) {
     return ((c.r & 0xff) << 16) | ((c.g & 0xff) << 8) | (c.b & 0xff);
@@ -64,6 +66,17 @@ static void draw_charts(void) {
             x0 + border_pad, y0 + title_pad,
             chart_w - 2*border_pad, chart_h - title_pad - border_pad);
 
+        // Draw Y-axis labels (min and max)
+        XSetForeground(dpy, gc, color_pixel(style.column_label_color));
+        char max_label[32], min_label[32];
+        snprintf(max_label, sizeof(max_label), "%d", value_range_max);
+        snprintf(min_label, sizeof(min_label), "%d", value_range_min);
+        int y_axis_x = x0 + border_pad + 4;
+        int y_axis_top = y0 + title_pad + 16;
+        int y_axis_bottom = y0 + chart_h - border_pad - 18;
+        XDrawString(dpy, win, gc, y_axis_x, y_axis_top + 10, max_label, strlen(max_label));
+        XDrawString(dpy, win, gc, y_axis_x, y_axis_bottom, min_label, strlen(min_label));
+
         // Draw columns
         unsigned int ncol = charts[idx].num_columns;
         if (ncol == 0) continue;
@@ -72,12 +85,19 @@ static void draw_charts(void) {
         int col_max_h = chart_h - 2*border_pad - title_pad - 34;
         int col_y = y0 + title_pad + 16;
 
+        // Calculate range span for normalization
+        float range_span = (float)(value_range_max - value_range_min);
+        if (range_span == 0.0f) range_span = 1.0f; // Avoid division by zero
+
         for (unsigned int c = 0; c < ncol; ++c) {
             chartlib_column_t *col = &charts[idx].columns[c];
             int cx = x0 + border_pad + 10 + c * col_w;
             int bh = col_max_h;
-            int v2_h = (int)(col->value2 / 100.0f * bh);
-            int v1_h = (int)(col->value1 / 100.0f * bh);
+            // Normalize values based on custom range
+            float norm_v2 = (col->value2 - value_range_min) / range_span;
+            float norm_v1 = (col->value1 - value_range_min) / range_span;
+            int v2_h = (int)(norm_v2 * bh);
+            int v1_h = (int)(norm_v1 * bh);
 
             // value2 bar (background)
             XSetForeground(dpy, gc, color_pixel(style.value2_color));
@@ -196,10 +216,27 @@ int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, cons
 }
 
 int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2) {
-    if (chart_idx >= chart_count || col_idx >= charts[chart_idx].num_columns || value1 < 0.f || value2 < 0.f || value1 > 100.f || value2 > 100.f || value1 > value2)
+    if (chart_idx >= chart_count || col_idx >= charts[chart_idx].num_columns)
         return CHARTLIB_ERR_PARAM;
+    
+    // Clamp values to the configured range
+    if (value1 < value_range_min) value1 = value_range_min;
+    if (value1 > value_range_max) value1 = value_range_max;
+    if (value2 < value_range_min) value2 = value_range_min;
+    if (value2 > value_range_max) value2 = value_range_max;
+    
+    // After clamping, ensure value1 <= value2
+    if (value1 > value2) value1 = value2;
+    
     charts[chart_idx].columns[col_idx].value1 = value1;
     charts[chart_idx].columns[col_idx].value2 = value2;
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_value_range(int min, int max) {
+    if (min >= max) return CHARTLIB_ERR_PARAM;
+    value_range_min = min;
+    value_range_max = max;
     return CHARTLIB_OK;
 }
 

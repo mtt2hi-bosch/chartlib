@@ -15,8 +15,8 @@ typedef struct {
 
 typedef struct {
     char      label[CHARTLIB_MAX_LABEL_LEN];
-    float     value1; // 0.0 - 100.0
-    float     value2; // 0.0 - 100.0 (value1 <= value2)
+    float     value1; // Within custom range (default: 0.0 - 100.0)
+    float     value2; // Within custom range (default: 0.0 - 100.0) (value1 <= value2)
 } chartlib_column_t;
 
 typedef enum {
@@ -51,6 +51,8 @@ int chartlib_set_window_title(const char *title);
 int chartlib_set_chart_title(unsigned int chart_idx, const char *title);
 int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, const char *label);
 int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2);
+
+int chartlib_set_value_range(int min, int max);
 
 int chartlib_update(void);
 

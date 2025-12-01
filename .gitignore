@@ -1,0 +1,4 @@
+chartdemo
+*.o
+*.a
+_codeql_detected_source_root
