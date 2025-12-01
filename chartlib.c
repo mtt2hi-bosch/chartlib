@@ -225,8 +225,8 @@ int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, flo
     if (value2 < value_range_min) value2 = value_range_min;
     if (value2 > value_range_max) value2 = value_range_max;
     
-    // Ensure value1 <= value2
-    if (value1 > value2) return CHARTLIB_ERR_PARAM;
+    // After clamping, ensure value1 <= value2
+    if (value1 > value2) value1 = value2;
     
     charts[chart_idx].columns[col_idx].value1 = value1;
     charts[chart_idx].columns[col_idx].value2 = value2;
