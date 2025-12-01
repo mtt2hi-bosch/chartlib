@@ -43,7 +43,29 @@ if (chartlib_init(&opts) != CHARTLIB_OK) {
 chartlib_set_window_title("CPU Quality Charts");
 ```
 
-## 4. Set Chart Titles, Labels, and Values
+## 4. Set Custom Value Range (Optional)
+
+By default, chartlib uses a value range of 0-100. You can customize this range to fit your data:
+
+```c
+chartlib_set_value_range(0, 200);  // Set range to 0-200
+```
+
+**Behavior:**
+- Values passed to `chartlib_set_column_values()` will be clamped to the specified range
+- Values below `min` are clamped to `min`
+- Values above `max` are clamped to `max`
+- The Y-axis automatically displays the min and max values as labels
+- Call this before setting column values for best results
+
+**Example:**
+
+```c
+chartlib_set_value_range(50, 150);  // Custom range: 50-150
+chartlib_set_column_values(0, 0, 45.0, 160.0);  // Will be clamped to 50.0, 150.0
+```
+
+## 5. Set Chart Titles, Labels, and Values
 
 ```c
 chartlib_set_chart_title(0, "Quality CPU 1");
@@ -56,13 +78,13 @@ chartlib_set_column_label(1, 2, "Turbo");
 chartlib_set_column_values(1, 2, 40.0, 85.0);
 ```
 
-## 5. Redraw
+## 6. Redraw
 
 ```c
 chartlib_update();
 ```
 
-## 6. Main Loop
+## 7. Main Loop
 
 ```c
 while (running) {
@@ -76,13 +98,13 @@ while (running) {
 
 Window close sets `running=0` via the event callback.
 
-## 7. Shutdown
+## 8. Shutdown
 
 ```c
 chartlib_close();
 ```
 
-## 8. Improved Chart Title Placement
+## 9. Improved Chart Title Placement
 
 Chart titles are now drawn with extra top padding, appearing **above** the chart frame instead of overlapping it.
 
@@ -96,6 +118,7 @@ Chart titles are now drawn with extra top padding, appearing **above** the chart
 - `int chartlib_set_chart_title(unsigned int chart_idx, const char *title);`
 - `int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, const char *label);`
 - `int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2);`
+- `int chartlib_set_value_range(int min, int max);`            *(set custom value range)*
 - `int chartlib_update(void);`
 - `int chartlib_set_style(const chartlib_style_t *style);`     *(runtime style change)*
 

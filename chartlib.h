@@ -52,6 +52,8 @@ int chartlib_set_chart_title(unsigned int chart_idx, const char *title);
 int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, const char *label);
 int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2);
 
+int chartlib_set_value_range(int min, int max);
+
 int chartlib_update(void);
 
 int chartlib_set_style(const chartlib_style_t *style);
