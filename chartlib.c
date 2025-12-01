@@ -1,0 +1,216 @@
+#include "chartlib.h"
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h> // For usleep
+
+typedef struct {
+    char title[CHARTLIB_MAX_TITLE_LEN];
+    chartlib_column_t columns[CHARTLIB_MAX_COLUMNS];
+    unsigned int num_columns;
+} chart_data_t;
+
+static Display *dpy = NULL;
+static int screen;
+static Window win;
+static GC gc;
+static int win_w = 800, win_h = 600;
+static pthread_t event_thread;
+static int running = 0;
+static int redraw_pending = 0;
+static char window_title[128] = "ChartLib Charts";
+
+static chart_data_t charts[CHARTLIB_MAX_CHARTS];
+static unsigned int chart_count = 0;
+static chartlib_style_t style;
+static chartlib_event_callback_t event_cb = NULL;
+static void *event_cb_userdata = NULL;
+
+static unsigned long color_pixel(chartlib_color_t c) {
+    return ((c.r & 0xff) << 16) | ((c.g & 0xff) << 8) | (c.b & 0xff);
+}
+
+static void draw_charts(void) {
+    XClearWindow(dpy, win);
+
+    int cols = 1, rows = 1;
+    while (cols * rows < chart_count) {
+        if (cols == rows) cols++;
+        else rows++;
+    }
+    int chart_w = win_w / cols;
+    int chart_h = win_h / rows;
+
+    for (unsigned int idx = 0; idx < chart_count; ++idx) {
+        int chart_row = idx / cols;
+        int chart_col = idx % cols;
+        int x0 = chart_col * chart_w;
+        int y0 = chart_row * chart_h;
+
+        // Vertical padding for title
+        int title_pad = 22; // px
+        int border_pad = 4; // px
+
+        // Draw chart title (above frame, so NOT overlapped)
+        XSetForeground(dpy, gc, color_pixel(style.chart_title_color));
+        XDrawString(dpy, win, gc, x0 + 16, y0 + title_pad, charts[idx].title, strlen(charts[idx].title));
+
+        // Draw chart border, shifted down for title space
+        XSetForeground(dpy, gc, color_pixel(style.border_color));
+        XDrawRectangle(dpy, win, gc,
+            x0 + border_pad, y0 + title_pad,
+            chart_w - 2*border_pad, chart_h - title_pad - border_pad);
+
+        // Draw columns
+        unsigned int ncol = charts[idx].num_columns;
+        if (ncol == 0) continue;
+
+        int col_w = (chart_w - 2*border_pad - 20) / ncol;
+        int col_max_h = chart_h - 2*border_pad - title_pad - 34;
+        int col_y = y0 + title_pad + 16;
+
+        for (unsigned int c = 0; c < ncol; ++c) {
+            chartlib_column_t *col = &charts[idx].columns[c];
+            int cx = x0 + border_pad + 10 + c * col_w;
+            int bh = col_max_h;
+            int v2_h = (int)(col->value2 / 100.0f * bh);
+            int v1_h = (int)(col->value1 / 100.0f * bh);
+
+            // value2 bar (background)
+            XSetForeground(dpy, gc, color_pixel(style.value2_color));
+            XFillRectangle(dpy, win, gc, cx, col_y + bh - v2_h, col_w - 4, v2_h);
+
+            // value1 bar (foreground)
+            XSetForeground(dpy, gc, color_pixel(style.value1_color));
+            XFillRectangle(dpy, win, gc, cx, col_y + bh - v1_h, col_w - 4, v1_h);
+
+            // borders around column
+            XSetForeground(dpy, gc, color_pixel(style.border_color));
+            XDrawRectangle(dpy, win, gc, cx, col_y, col_w - 4, bh);
+
+            // Draw label
+            XSetForeground(dpy, gc, color_pixel(style.column_label_color));
+            XDrawString(dpy, win, gc, cx, col_y + bh + 16, col->label, strlen(col->label));
+        }
+    }
+    XFlush(dpy);
+}
+
+static void *event_thread_func(void *unused) {
+    XEvent ev;
+    while (running) {
+        while (XPending(dpy)) {
+            XNextEvent(dpy, &ev);
+            if (ev.type == Expose) {
+                draw_charts();
+            } else if (ev.type == ConfigureNotify) {
+                win_w = ev.xconfigure.width;
+                win_h = ev.xconfigure.height;
+                draw_charts();
+            } else if (ev.type == ClientMessage) {
+                running = 0;
+                if (event_cb) event_cb(CHARTLIB_EVENT_CLOSE, event_cb_userdata);
+            }
+        }
+        if (redraw_pending) {
+            draw_charts();
+            redraw_pending = 0;
+        }
+        usleep(10000);
+    }
+    return NULL;
+}
+
+int chartlib_init(const chartlib_init_options_t *opts) {
+    if (!opts || opts->chart_count < 1 || opts->chart_count > CHARTLIB_MAX_CHARTS)
+        return CHARTLIB_ERR_RANGE;
+    chart_count = opts->chart_count;
+    for (unsigned int i = 0; i < chart_count; ++i) {
+        charts[i].num_columns = opts->columns_per_chart[i];
+        if (charts[i].num_columns < 1 || charts[i].num_columns > CHARTLIB_MAX_COLUMNS)
+            return CHARTLIB_ERR_RANGE;
+        snprintf(charts[i].title, CHARTLIB_MAX_TITLE_LEN, "Quality CPU %u", i+1);
+        for (unsigned int c = 0; c < charts[i].num_columns; ++c) {
+            charts[i].columns[c].label[0] = 0;
+            charts[i].columns[c].value1 = 0.0f;
+            charts[i].columns[c].value2 = 0.0f;
+        }
+    }
+    style = opts->style;
+    event_cb = opts->event_cb;
+    event_cb_userdata = opts->event_cb_userdata;
+
+    dpy = XOpenDisplay(NULL);
+    if (!dpy) return CHARTLIB_ERR_SYSTEM;
+    screen = DefaultScreen(dpy);
+    win = XCreateSimpleWindow(dpy, RootWindow(dpy, screen), 100, 100,
+                             win_w, win_h, 1,
+                             BlackPixel(dpy, screen),
+                             color_pixel(style.bg_color));
+    XSelectInput(dpy, win, ExposureMask|KeyPressMask|StructureNotifyMask);
+    Atom wm_delete = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
+    XSetWMProtocols(dpy, win, &wm_delete, 1);
+
+    gc = XCreateGC(dpy, win, 0, NULL);
+
+    XMapWindow(dpy, win);
+    XStoreName(dpy, win, window_title); // initial window title
+    XSetIconName(dpy, win, window_title);
+
+    running = 1;
+    if (pthread_create(&event_thread, NULL, event_thread_func, NULL))
+        return CHARTLIB_ERR_SYSTEM;
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_window_title(const char *title) {
+    if (!dpy || !win || !title) return CHARTLIB_ERR_PARAM;
+    snprintf(window_title, sizeof(window_title), "%s", title);
+    XStoreName(dpy, win, window_title);
+    XSetIconName(dpy, win, window_title);
+    XFlush(dpy);
+    return CHARTLIB_OK;
+}
+
+void chartlib_close(void) {
+    running = 0;
+    pthread_join(event_thread, NULL);
+    XDestroyWindow(dpy, win);
+    XCloseDisplay(dpy);
+    dpy = NULL;
+}
+
+int chartlib_set_chart_title(unsigned int chart_idx, const char *title) {
+    if (chart_idx >= chart_count || !title) return CHARTLIB_ERR_PARAM;
+    snprintf(charts[chart_idx].title, CHARTLIB_MAX_TITLE_LEN, "%s", title);
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, const char *label) {
+    if (chart_idx >= chart_count || col_idx >= charts[chart_idx].num_columns || !label) return CHARTLIB_ERR_PARAM;
+    snprintf(charts[chart_idx].columns[col_idx].label, CHARTLIB_MAX_LABEL_LEN, "%s", label);
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2) {
+    if (chart_idx >= chart_count || col_idx >= charts[chart_idx].num_columns || value1 < 0.f || value2 < 0.f || value1 > 100.f || value2 > 100.f || value1 > value2)
+        return CHARTLIB_ERR_PARAM;
+    charts[chart_idx].columns[col_idx].value1 = value1;
+    charts[chart_idx].columns[col_idx].value2 = value2;
+    return CHARTLIB_OK;
+}
+
+int chartlib_update(void) {
+    redraw_pending = 1;
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_style(const chartlib_style_t *s) {
+    if (!s) return CHARTLIB_ERR_PARAM;
+    style = *s;
+    redraw_pending = 1;
+    return CHARTLIB_OK;
+}
