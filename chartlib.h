@@ -15,8 +15,8 @@ typedef struct {
 
 typedef struct {
     char      label[CHARTLIB_MAX_LABEL_LEN];
-    float     value1; // 0.0 - 100.0
-    float     value2; // 0.0 - 100.0 (value1 <= value2)
+    float     value1; // Within custom range (default: 0.0 - 100.0)
+    float     value2; // Within custom range (default: 0.0 - 100.0) (value1 <= value2)
 } chartlib_column_t;
 
 typedef enum {
