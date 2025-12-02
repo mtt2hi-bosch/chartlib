@@ -139,7 +139,6 @@ static void *event_thread_func(void *unused) {
             draw_charts();
             redraw_pending = 0;
         }
-        usleep(10000);
     }
     return NULL;
 }
@@ -163,6 +162,7 @@ int chartlib_init(const chartlib_init_options_t *opts) {
     event_cb = opts->event_cb;
     event_cb_userdata = opts->event_cb_userdata;
 
+    XInitThreads(); 
     dpy = XOpenDisplay(NULL);
     if (!dpy) return CHARTLIB_ERR_SYSTEM;
     screen = DefaultScreen(dpy);

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CHARTLIB_MAX_CHARTS    16
+#define CHARTLIB_MAX_CHARTS    32
 #define CHARTLIB_MAX_COLUMNS   128
 #define CHARTLIB_MAX_LABEL_LEN 64
 #define CHARTLIB_MAX_TITLE_LEN 64
