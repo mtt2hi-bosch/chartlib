@@ -32,6 +32,10 @@ static void *event_cb_userdata = NULL;
 static int value_range_min = 0;
 static int value_range_max = 100;
 
+// Constants for label rendering
+#define VERTICAL_CHAR_SPACING 12
+#define VERTICAL_LABEL_OFFSET 8
+
 static unsigned long color_pixel(chartlib_color_t c) {
     return ((c.r & 0xff) << 16) | ((c.g & 0xff) << 8) | (c.b & 0xff);
 }
@@ -45,6 +49,11 @@ static const char* format_label(const char *label, unsigned int max_chars) {
     
     if (max_chars == 0 || strlen(label) <= max_chars) {
         return label;
+    }
+    
+    // Ensure max_chars doesn't exceed buffer size
+    if (max_chars >= CHARTLIB_MAX_LABEL_LEN) {
+        max_chars = CHARTLIB_MAX_LABEL_LEN - 1;
     }
     
     // Truncate with ellipsis
@@ -89,12 +98,12 @@ static void draw_column_label(const char *label, int cx, int col_y, int col_w, i
         // Draw each character vertically (one below the next)
         for (int i = 0; i < label_len; ++i) {
             char ch[2] = {display_label[i], '\0'};
-            XDrawString(dpy, win, gc, label_x, start_y + i * 12, ch, 1);
+            XDrawString(dpy, win, gc, label_x, start_y + i * VERTICAL_CHAR_SPACING, ch, 1);
         }
         
     } else if (opts->orientation == CHARTLIB_LABEL_VERTICAL_BOTTOM_RIGHT) {
         // Vertical label, bottom to top, right aligned
-        int label_x = cx + 8; // Add offset for right-aligned vertical text
+        int label_x = cx + VERTICAL_LABEL_OFFSET;
         if (opts->alignment == CHARTLIB_LABEL_ALIGN_RIGHT) {
             label_x = cx + col_w - 4;
         }
@@ -103,7 +112,7 @@ static void draw_column_label(const char *label, int cx, int col_y, int col_w, i
         // Draw each character vertically (one below the next)
         for (int i = 0; i < label_len; ++i) {
             char ch[2] = {display_label[i], '\0'};
-            XDrawString(dpy, win, gc, label_x, start_y + i * 12, ch, 1);
+            XDrawString(dpy, win, gc, label_x, start_y + i * VERTICAL_CHAR_SPACING, ch, 1);
         }
     }
 }
