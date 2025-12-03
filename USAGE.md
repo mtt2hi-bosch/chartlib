@@ -1,12 +1,22 @@
-# ChartLib Usage Guide (with window title and improved chart title rendering)
+# ChartLib Usage Guide (with Cairo-powered rotated labels)
 
-## 1. Include the Header
+## 1. Requirements
+
+- Xlib (`libx11-dev`)
+- Cairo graphics (`libcairo2-dev`)
+
+Install on Ubuntu/Debian with:
+```sh
+sudo apt-get install libx11-dev libcairo2-dev
+```
+
+## 2. Include the Header
 
 ```c
 #include "chartlib.h"
 ```
 
-## 2. Configure and Initialize
+## 3. Configure and Initialize
 
 ```c
 chartlib_init_options_t opts = {0};
@@ -22,10 +32,8 @@ opts.style.value2_color = (chartlib_color_t){220,220,220};
 opts.style.border_color = (chartlib_color_t){90,90,90};
 
 void on_event(chartlib_event_type_t event_type, void *userdata) {
-    if (event_type == CHARTLIB_EVENT_CLOSE) {
-        printf("ChartLib: window closed!\n");
+    if (event_type == CHARTLIB_EVENT_CLOSE)
         *(int*)userdata = 0;
-    }
 }
 int running = 1;
 opts.event_cb = on_event;
@@ -37,97 +45,65 @@ if (chartlib_init(&opts) != CHARTLIB_OK) {
 }
 ```
 
-## 3. Set Window Title
+## 4. Set Window Title
 
 ```c
 chartlib_set_window_title("CPU Quality Charts");
 ```
 
-## 4. Set Custom Value Range (Optional)
-
-By default, chartlib uses a value range of 0-100. You can customize this range to fit your data:
+## 5. Set Global Column Label Style (supports vertical alignment!)
 
 ```c
-chartlib_set_value_range(0, 200);  // Set range to 0-200
+chartlib_set_column_label_style(
+    CHARTLIB_LABEL_VERTICAL_BOTLEFT, // vertical, top-to-bottom
+    CHARTLIB_LABEL_ALIGN_RIGHT,      // right edge alignment
+    7                                // max label chars
+);
 ```
 
-**Behavior:**
-- Values passed to `chartlib_set_column_values()` will be clamped to the specified range
-- Values below `min` are clamped to `min`
-- Values above `max` are clamped to `max`
-- The Y-axis automatically displays the min and max values as labels
-- Call this before setting column values for best results
-
-**Example:**
-
-```c
-chartlib_set_value_range(50, 150);  // Custom range: 50-150
-chartlib_set_column_values(0, 0, 45.0, 160.0);  // Will be clamped to 50.0, 150.0
-```
-
-## 5. Set Chart Titles, Labels, and Values
+## 6. Set Chart Titles, Labels, and Values
 
 ```c
 chartlib_set_chart_title(0, "Quality CPU 1");
 chartlib_set_chart_title(1, "Quality CPU 2");
-
 chartlib_set_column_label(0, 0, "Core 1");
 chartlib_set_column_values(0, 0, 35.0, 60.0);
-
-chartlib_set_column_label(1, 2, "Turbo");
-chartlib_set_column_values(1, 2, 40.0, 85.0);
 ```
 
-## 6. Redraw
+## 7. Redraw
 
 ```c
 chartlib_update();
 ```
 
-## 7. Main Loop
+## 8. Main Loop
 
 ```c
 while (running) {
-    // Update data for charts if needed
-    chartlib_set_column_values(...);
-    chartlib_update(); // update window
-
+    chartlib_set_column_values(0, 0, ...); // update values
+    chartlib_update();
     sleep(1);
 }
 ```
 
-Window close sets `running=0` via the event callback.
-
-## 8. Shutdown
+## 9. Shutdown
 
 ```c
 chartlib_close();
 ```
-
-## 9. Improved Chart Title Placement
-
-Chart titles are now drawn with extra top padding, appearing **above** the chart frame instead of overlapping it.
-
----
-
-## Main Functions Recap
-
-- `int chartlib_init(const chartlib_init_options_t *opts);`
-- `void chartlib_close(void);`
-- `int chartlib_set_window_title(const char *title);`          *(set window caption)*
-- `int chartlib_set_chart_title(unsigned int chart_idx, const char *title);`
-- `int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, const char *label);`
-- `int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2);`
-- `int chartlib_set_value_range(int min, int max);`            *(set custom value range)*
-- `int chartlib_update(void);`
-- `int chartlib_set_style(const chartlib_style_t *style);`     *(runtime style change)*
 
 ---
 
 ## Build
 
 ```sh
-gcc -o chartdemo main.c chartlib.c -lX11 -lpthread
+gcc -o chartdemo main.c chartlib.c -lX11 -lcairo -lpthread
 ```
 
-Let me know if you need more features, a Makefile, or further demo samples!
+---
+
+## Notes
+
+- **Vertical label orientations are now fully supported** using Cairo rotation.
+- **All ChartLib API functions remain unchanged**. Simply link with Cairo.
+- **Alignment and maximal label length** handled as requested.

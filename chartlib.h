@@ -43,6 +43,26 @@ typedef struct {
     void            *event_cb_userdata;
 } chartlib_init_options_t;
 
+// === NEW: Column label orientation and alignment types ===
+typedef enum {
+    CHARTLIB_LABEL_HORIZONTAL = 0,
+    CHARTLIB_LABEL_VERTICAL_BOTLEFT,
+    CHARTLIB_LABEL_VERTICAL_BOTRIGHT
+} chartlib_label_orientation_t;
+
+typedef enum {
+    CHARTLIB_LABEL_ALIGN_LEFT = 0,
+    CHARTLIB_LABEL_ALIGN_RIGHT
+} chartlib_label_align_t;
+
+// === NEW: Set global column label style for all charts ===
+void chartlib_set_column_label_style(
+    chartlib_label_orientation_t orientation,
+    chartlib_label_align_t align,
+    unsigned int max_label_chars
+);
+
+// Existing API (unchanged)
 int chartlib_init(const chartlib_init_options_t *opts);
 void chartlib_close(void);
 

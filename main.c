@@ -29,6 +29,10 @@ int main() {
     }
     chartlib_set_window_title("CPU Quality Charts");
 
+    // === NEW: Configure global column label style (vertical, right align, max 7 chars) ===
+//    chartlib_set_column_label_style(CHARTLIB_LABEL_VERTICAL_BOTLEFT, CHARTLIB_LABEL_ALIGN_RIGHT, 7);
+    chartlib_set_column_label_style(CHARTLIB_LABEL_VERTICAL_BOTRIGHT, CHARTLIB_LABEL_ALIGN_RIGHT, 7);
+
     chartlib_set_chart_title(0, "Quality CPU 1");
     chartlib_set_chart_title(1, "Quality CPU 2");
 
