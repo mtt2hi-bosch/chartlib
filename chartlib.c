@@ -11,6 +11,7 @@ typedef struct {
     char title[CHARTLIB_MAX_TITLE_LEN];
     chartlib_column_t columns[CHARTLIB_MAX_COLUMNS];
     unsigned int num_columns;
+    chartlib_column_label_opts_t label_opts;
 } chart_data_t;
 
 static Display *dpy = NULL;
@@ -31,8 +32,85 @@ static void *event_cb_userdata = NULL;
 static int value_range_min = 0;
 static int value_range_max = 100;
 
+// Constants for label rendering
+#define VERTICAL_CHAR_SPACING 12
+#define VERTICAL_LABEL_OFFSET 8
+
 static unsigned long color_pixel(chartlib_color_t c) {
     return ((c.r & 0xff) << 16) | ((c.g & 0xff) << 8) | (c.b & 0xff);
+}
+
+/**
+ * Truncate or format label text based on max_chars setting
+ * Returns a static buffer with the formatted label
+ */
+static const char* format_label(const char *label, unsigned int max_chars) {
+    static char buffer[CHARTLIB_MAX_LABEL_LEN];
+    
+    if (max_chars == 0 || strlen(label) <= max_chars) {
+        return label;
+    }
+    
+    // Ensure max_chars doesn't exceed buffer size
+    if (max_chars >= CHARTLIB_MAX_LABEL_LEN) {
+        max_chars = CHARTLIB_MAX_LABEL_LEN - 1;
+    }
+    
+    // Truncate with ellipsis
+    if (max_chars <= 3) {
+        strncpy(buffer, label, max_chars);
+        buffer[max_chars] = '\0';
+    } else {
+        strncpy(buffer, label, max_chars - 3);
+        buffer[max_chars - 3] = '\0';
+        strcat(buffer, "...");
+    }
+    
+    return buffer;
+}
+
+/**
+ * Draw column label with specified orientation and alignment
+ */
+static void draw_column_label(const char *label, int cx, int col_y, int col_w, int bh,
+                              const chartlib_column_label_opts_t *opts) {
+    const char *display_label = format_label(label, opts->max_chars);
+    int label_len = strlen(display_label);
+    
+    if (label_len == 0) return;
+    
+    if (opts->orientation == CHARTLIB_LABEL_HORIZONTAL) {
+        // Horizontal label
+        int label_x = cx;
+        if (opts->alignment == CHARTLIB_LABEL_ALIGN_RIGHT) {
+            label_x = cx + col_w - 4; // Right side of column
+        }
+        XDrawString(dpy, win, gc, label_x, col_y + bh + 16, display_label, label_len);
+        
+    } else {
+        // Vertical labels (both orientations)
+        int label_x;
+        
+        // Determine base X position based on orientation
+        if (opts->orientation == CHARTLIB_LABEL_VERTICAL_BOTTOM_LEFT) {
+            label_x = cx;
+        } else { // CHARTLIB_LABEL_VERTICAL_BOTTOM_RIGHT
+            label_x = cx + VERTICAL_LABEL_OFFSET;
+        }
+        
+        // Apply alignment override if specified
+        if (opts->alignment == CHARTLIB_LABEL_ALIGN_RIGHT) {
+            label_x = cx + col_w - 4;
+        }
+        
+        int start_y = col_y + bh + 16;
+        
+        // Draw each character vertically (one below the next)
+        for (int i = 0; i < label_len; ++i) {
+            char ch[2] = {display_label[i], '\0'};
+            XDrawString(dpy, win, gc, label_x, start_y + i * VERTICAL_CHAR_SPACING, ch, 1);
+        }
+    }
 }
 
 static void draw_charts(void) {
@@ -111,9 +189,9 @@ static void draw_charts(void) {
             XSetForeground(dpy, gc, color_pixel(style.border_color));
             XDrawRectangle(dpy, win, gc, cx, col_y, col_w - 4, bh);
 
-            // Draw label
+            // Draw label with custom options
             XSetForeground(dpy, gc, color_pixel(style.column_label_color));
-            XDrawString(dpy, win, gc, cx, col_y + bh + 16, col->label, strlen(col->label));
+            draw_column_label(col->label, cx, col_y, col_w, bh, &charts[idx].label_opts);
         }
     }
     XFlush(dpy);
@@ -152,6 +230,10 @@ int chartlib_init(const chartlib_init_options_t *opts) {
         if (charts[i].num_columns < 1 || charts[i].num_columns > CHARTLIB_MAX_COLUMNS)
             return CHARTLIB_ERR_RANGE;
         snprintf(charts[i].title, CHARTLIB_MAX_TITLE_LEN, "Quality CPU %u", i+1);
+        // Initialize default label options
+        charts[i].label_opts.orientation = CHARTLIB_LABEL_HORIZONTAL;
+        charts[i].label_opts.alignment = CHARTLIB_LABEL_ALIGN_LEFT;
+        charts[i].label_opts.max_chars = 0; // No limit by default
         for (unsigned int c = 0; c < charts[i].num_columns; ++c) {
             charts[i].columns[c].label[0] = 0;
             charts[i].columns[c].value1 = 0.0f;
@@ -230,6 +312,20 @@ int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, flo
     
     charts[chart_idx].columns[col_idx].value1 = value1;
     charts[chart_idx].columns[col_idx].value2 = value2;
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_column_label_options(unsigned int chart_idx, const chartlib_column_label_opts_t *opts) {
+    if (chart_idx >= chart_count) return CHARTLIB_ERR_PARAM;
+    
+    if (opts) {
+        charts[chart_idx].label_opts = *opts;
+    } else {
+        // Reset to defaults
+        charts[chart_idx].label_opts.orientation = CHARTLIB_LABEL_HORIZONTAL;
+        charts[chart_idx].label_opts.alignment = CHARTLIB_LABEL_ALIGN_LEFT;
+        charts[chart_idx].label_opts.max_chars = 0;
+    }
     return CHARTLIB_OK;
 }
 
