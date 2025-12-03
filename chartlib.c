@@ -87,26 +87,22 @@ static void draw_column_label(const char *label, int cx, int col_y, int col_w, i
         }
         XDrawString(dpy, win, gc, label_x, col_y + bh + 16, display_label, label_len);
         
-    } else if (opts->orientation == CHARTLIB_LABEL_VERTICAL_BOTTOM_LEFT) {
-        // Vertical label, bottom to top, left aligned
-        int label_x = cx;
+    } else {
+        // Vertical labels (both orientations)
+        int label_x;
+        
+        // Determine base X position based on orientation
+        if (opts->orientation == CHARTLIB_LABEL_VERTICAL_BOTTOM_LEFT) {
+            label_x = cx;
+        } else { // CHARTLIB_LABEL_VERTICAL_BOTTOM_RIGHT
+            label_x = cx + VERTICAL_LABEL_OFFSET;
+        }
+        
+        // Apply alignment override if specified
         if (opts->alignment == CHARTLIB_LABEL_ALIGN_RIGHT) {
             label_x = cx + col_w - 4;
         }
-        int start_y = col_y + bh + 16;
         
-        // Draw each character vertically (one below the next)
-        for (int i = 0; i < label_len; ++i) {
-            char ch[2] = {display_label[i], '\0'};
-            XDrawString(dpy, win, gc, label_x, start_y + i * VERTICAL_CHAR_SPACING, ch, 1);
-        }
-        
-    } else if (opts->orientation == CHARTLIB_LABEL_VERTICAL_BOTTOM_RIGHT) {
-        // Vertical label, bottom to top, right aligned
-        int label_x = cx + VERTICAL_LABEL_OFFSET;
-        if (opts->alignment == CHARTLIB_LABEL_ALIGN_RIGHT) {
-            label_x = cx + col_w - 4;
-        }
         int start_y = col_y + bh + 16;
         
         // Draw each character vertically (one below the next)
