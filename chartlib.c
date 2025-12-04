@@ -14,6 +14,8 @@ typedef struct {
     char title[CHARTLIB_MAX_TITLE_LEN];
     chartlib_column_t columns[CHARTLIB_MAX_COLUMNS];
     unsigned int num_columns;
+    int value_range_min;
+    int value_range_max;
 } chart_data_t;
 
 static Display *dpy = NULL;
@@ -157,8 +159,8 @@ static void draw_charts(void) {
                         CHARTLIB_LABEL_HORIZONTAL, CHARTLIB_LABEL_ALIGN_LEFT, style.chart_title_color);
 
         char max_label[32], min_label[32];
-        snprintf(max_label, sizeof(max_label), "%d", value_range_max);
-        snprintf(min_label, sizeof(min_label), "%d", value_range_min);
+        snprintf(max_label, sizeof(max_label), "%d", charts[idx].value_range_max);
+        snprintf(min_label, sizeof(min_label), "%d", charts[idx].value_range_min);
         int y_axis_x = x0 + border_pad + 4;
         int y_axis_top = y0 + title_pad + 16;
         int y_axis_bottom = y0 + chart_h - border_pad - 18;
@@ -186,7 +188,7 @@ static void draw_charts(void) {
         int col_max_h = chart_h - 2*border_pad - title_pad - 34 - vertical_label_margin;
         int col_y = y0 + title_pad + 16;
 
-        float range_span = (float)(value_range_max - value_range_min);
+        float range_span = (float)(charts[idx].value_range_max - charts[idx].value_range_min);
         if (range_span == 0.0f) range_span = 1.0f;
 
         for (unsigned int c = 0; c < ncol; ++c) {
@@ -194,8 +196,8 @@ static void draw_charts(void) {
             int cx = x0 + border_pad + 10 + c * col_w;
             int bh = col_max_h;
 
-            float norm_v2 = (col->value2 - value_range_min) / range_span;
-            float norm_v1 = (col->value1 - value_range_min) / range_span;
+            float norm_v2 = (col->value2 - charts[idx].value_range_min) / range_span;
+            float norm_v1 = (col->value1 - charts[idx].value_range_min) / range_span;
             int v2_h = (int)(norm_v2 * bh);
             int v1_h = (int)(norm_v1 * bh);
 
@@ -267,6 +269,8 @@ int chartlib_init(const chartlib_init_options_t *opts) {
         if (charts[i].num_columns < 1 || charts[i].num_columns > CHARTLIB_MAX_COLUMNS)
             return CHARTLIB_ERR_RANGE;
         snprintf(charts[i].title, CHARTLIB_MAX_TITLE_LEN, "Quality CPU %u", i+1);
+        charts[i].value_range_min = value_range_min;
+        charts[i].value_range_max = value_range_max;
         for (unsigned int c = 0; c < charts[i].num_columns; ++c) {
             charts[i].columns[c].label[0] = 0;
             charts[i].columns[c].value1 = 0.0f;
@@ -338,10 +342,10 @@ int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, cons
 int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2) {
     if (chart_idx >= chart_count || col_idx >= charts[chart_idx].num_columns)
         return CHARTLIB_ERR_PARAM;
-    if (value1 < value_range_min) value1 = value_range_min;
-    if (value1 > value_range_max) value1 = value_range_max;
-    if (value2 < value_range_min) value2 = value_range_min;
-    if (value2 > value_range_max) value2 = value_range_max;
+    if (value1 < charts[chart_idx].value_range_min) value1 = charts[chart_idx].value_range_min;
+    if (value1 > charts[chart_idx].value_range_max) value1 = charts[chart_idx].value_range_max;
+    if (value2 < charts[chart_idx].value_range_min) value2 = charts[chart_idx].value_range_min;
+    if (value2 > charts[chart_idx].value_range_max) value2 = charts[chart_idx].value_range_max;
     if (value1 > value2) value1 = value2;
 
     charts[chart_idx].columns[col_idx].value1 = value1;
@@ -351,8 +355,17 @@ int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, flo
 
 int chartlib_set_value_range(int min, int max) {
     if (min >= max) return CHARTLIB_ERR_PARAM;
-    value_range_min = min;
-    value_range_max = max;
+    for (unsigned int idx = 0; idx < chart_count; ++idx) {
+        charts[idx].value_range_min = min;
+        charts[idx].value_range_max = max;
+    }
+    return CHARTLIB_OK;
+}
+
+int chartlib_set_value_range_chart(unsigned int chart_idx,int min, int max) {
+    if (chart_idx >= chart_count || (min >= max) ) return CHARTLIB_ERR_PARAM;
+    charts[chart_idx].value_range_min = min;
+    charts[chart_idx].value_range_max = max;
     return CHARTLIB_OK;
 }
 

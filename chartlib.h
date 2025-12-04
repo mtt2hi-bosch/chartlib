@@ -73,6 +73,8 @@ int chartlib_set_column_label(unsigned int chart_idx, unsigned int col_idx, cons
 int chartlib_set_column_values(unsigned int chart_idx, unsigned int col_idx, float value1, float value2);
 
 int chartlib_set_value_range(int min, int max);
+int chartlib_set_value_range_chart(unsigned int chart_idx,int min, int max);
+
 
 int chartlib_update(void);
 
